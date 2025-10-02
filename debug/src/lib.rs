@@ -22,8 +22,6 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         Data::Union(_) => {}
     }
 
-    let field_name: Vec<_> = fields.iter().map(|f| &f.ident).collect();
-
     let field_fmt: Vec<_> = fields
         .iter()
         .map(|f| {
@@ -58,8 +56,52 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         })
         .collect();
 
+    let generics: Vec<TokenStream> = input
+        .generics
+        .params
+        .iter()
+        .map(|g| {
+            quote! {
+                #g,
+            }
+        })
+        .collect();
+
+    let generics_w_trait_bound: Vec<TokenStream> = input
+        .generics
+        .params
+        .iter()
+        .map(|g| {
+            let mut needs_trait_bound = true;
+            for field in &fields {
+                let field_ty_s = field.ty.to_token_stream().to_string();
+                if field_ty_s.starts_with("PhantomData") {
+                    let Some(first_delim) = field_ty_s.find('<') else {
+                        continue;
+                    };
+                    let Some(second_delim) = field_ty_s.find('>') else {
+                        continue;
+                    };
+                    let inner = field_ty_s[first_delim + 1..second_delim].trim();
+                    if g.to_token_stream().to_string() == inner {
+                        needs_trait_bound = false;
+                    }
+                }
+            }
+            if needs_trait_bound {
+                quote! {
+                    #g : std::fmt::Debug,
+                }
+            } else {
+                quote! {
+                    #g,
+                }
+            }
+        })
+        .collect();
+
     let ret = quote! {
-        impl std::fmt::Debug for #name {
+        impl<#( #generics_w_trait_bound )*> std::fmt::Debug for #name<#( #generics )*> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.debug_struct(stringify!(#name))
                     #( #field_fmt )*
