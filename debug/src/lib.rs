@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, TokenStream};
-use quote::{quote, ToTokens};
+use quote::quote;
 use std::str::FromStr;
 use syn::{
     parse_macro_input, Data, DeriveInput, Expr, GenericArgument, GenericParam, Lit, Meta,
@@ -29,7 +29,6 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             ..
                         }) = nv.value
                         {
-                            println!("bound = {}", s.value());
                             bound_attr = TokenStream::from_str(&s.value()).unwrap();
                             infer_debug_bounds = false;
                         }
@@ -149,8 +148,6 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         get_associated_types(&field.ty, &mut assoc_types, &type_param_idents);
     }
 
-    dbg!(type_param_idents);
-
     let assoc_typ_trait_bounds = assoc_types
         .iter()
         .map(|t| {
@@ -171,7 +168,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
     };
-    eprintln!("TOKENS: {}", ret);
+    // eprintln!("TOKENS: {}", ret);
     ret.into()
 }
 
