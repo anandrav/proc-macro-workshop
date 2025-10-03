@@ -77,38 +77,12 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         .params
         .iter()
         .filter_map(|g| {
-            let mut needs_trait_bound = true;
-            for field in &fields {
-                let field_ty_s = field.ty.to_token_stream().to_string();
-                if field_ty_s.starts_with("PhantomData") {
-                    let Some(first_delim) = field_ty_s.find('<') else {
-                        continue;
-                    };
-                    let Some(second_delim) = field_ty_s.find('>') else {
-                        continue;
-                    };
-                    let inner = field_ty_s[first_delim + 1..second_delim].trim();
-                    if g.to_token_stream().to_string() == inner {
-                        needs_trait_bound = false;
-                    }
-                }
-            }
             let GenericParam::Type(t) = g else {
                 return None;
             };
-            // let ident = &t.ident;
             Some(quote! {
                 #t
             })
-            // Some(if needs_trait_bound {
-            //     quote! {
-            //         #ident : std::fmt::Debug,
-            //     }
-            // } else {
-            //     quote! {
-            //         #ident,
-            //     }
-            // })
         })
         .collect();
 
@@ -127,39 +101,6 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
     }
-    // let generics_w_debug_bound: Vec<TokenStream> = input
-    //     .generics
-    //     .params
-    //     .iter()
-    //     .filter_map(|g| {
-    //         let mut needs_trait_bound = false;
-    //         for field in &fields {
-    //             // let field_ty_s = field.ty.to_token_stream().to_string();
-    //             // if field_ty_s.starts_with("PhantomData") {
-    //             //     let Some(first_delim) = field_ty_s.find('<') else {
-    //             //         continue;
-    //             //     };
-    //             //     let Some(second_delim) = field_ty_s.find('>') else {
-    //             //         continue;
-    //             //     };
-    //             //     let inner = field_ty_s[first_delim + 1..second_delim].trim();
-    //             //     if g.to_token_stream().to_string() == inner {
-    //             //         needs_trait_bound = false;
-    //             //     }
-    //             // }
-    //         }
-    //         if !needs_trait_bound {
-    //             return None;
-    //         }
-    //         let GenericParam::Type(t) = g else {
-    //             return None;
-    //         };
-    //         let ident = &t.ident;
-    //         Some(quote! {
-    //             #ident : std::fmt::Debug,
-    //         })
-    //     })
-    //     .collect();
 
     // Collect type parameter idents
     let type_param_idents: Vec<Ident> = input
@@ -187,45 +128,6 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         })
         .collect::<Vec<_>>();
-    //
-    // let assoc_typ_trait_bounds: Vec<TokenStream> = fields
-    //     .iter()
-    //     .filter_map(|f| {
-    //         if let Type::Path(tp) = &f.ty {
-    //             panic!("{}", &f.ty.to_token_stream().to_string());
-    //             let Some(first_segment) = tp.path.segments.first() else {
-    //                 return None;
-    //             };
-    //             if tp.path.segments.len() < 2 {
-    //                 return None;
-    //             }
-    //             if input
-    //                 .generics
-    //                 .params
-    //                 .iter()
-    //                 .find(|p| {
-    //                     panic!(
-    //                         "p={}, first seg={}",
-    //                         p.to_token_stream(),
-    //                         first_segment.ident
-    //                     );
-    //                     p.to_token_stream().to_string() == first_segment.ident.to_string()
-    //                 })
-    //                 .is_some()
-    //             {
-    //                 return Some(&f.ty);
-    //             }
-    //         }
-    //         None
-    //     })
-    //     .map(|t| {
-    //         panic!("{}", t.to_token_stream());
-    //         quote! {
-    //             #t : std::fmt::Debug,
-    //         }
-    //     })
-    //     .collect();
-    // assert!(!assoc_typ_trait_bounds.is_empty());
 
     let ret = quote! {
         impl<#( #generics_w_trait_bound )*> std::fmt::Debug for #name<#( #generics )*>
@@ -265,7 +167,7 @@ fn ty_mentions_generic_param(ty: &Type, param: &Ident) -> bool {
             }
         }
     }
-    return false;
+    false
 }
 
 fn get_associated_types(ty: &Type, associated_types: &mut Vec<Type>, type_params: &[Ident]) {
