@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote, ToTokens};
+use quote::quote;
 use syn::{
-    parse_macro_input, Data, DeriveInput, Expr, GenericArgument, GenericParam, Lit, LitStr, Meta,
+    parse_macro_input, Data, DeriveInput, Expr, GenericArgument, GenericParam, Lit, Meta,
     PathArguments, Type,
 };
 
@@ -27,16 +27,13 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         .map(|f| {
             let mut s: Option<String> = None;
             for attr in &f.attrs {
-                match &attr.meta {
-                    Meta::NameValue(val) => match &val.value {
-                        Expr::Lit(exprlit) => match &exprlit.lit {
-                            Lit::Str(lit) => s = Some(lit.value()),
-                            _ => todo!("report an error"),
-                        },
+                if let Meta::NameValue(val) = &attr.meta { match &val.value {
+                    Expr::Lit(exprlit) => match &exprlit.lit {
+                        Lit::Str(lit) => s = Some(lit.value()),
                         _ => todo!("report an error"),
                     },
-                    _ => {}
-                }
+                    _ => todo!("report an error"),
+                } }
             }
 
             let field_name = &f.ident;
@@ -162,7 +159,7 @@ fn ty_mentions_generic_param(ty: &Type, param: &Ident) -> bool {
 
         if type_path.path.segments.len() == 1 {
             let first_seg = type_path.path.segments.first().unwrap();
-            if first_seg.ident == param.to_string() {
+            if first_seg.ident == *param {
                 return true;
             }
         }
