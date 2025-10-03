@@ -1,5 +1,6 @@
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
+use std::str::FromStr;
 use syn::{
     parse_macro_input, Data, DeriveInput, Expr, GenericArgument, GenericParam, Lit, Meta,
     PathArguments, Type,
@@ -8,6 +9,35 @@ use syn::{
 #[proc_macro_derive(CustomDebug, attributes(debug))]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+
+    let mut bound_attr = TokenStream::new();
+    let mut infer_debug_bounds = true;
+
+    for attr in &input.attrs {
+        if attr.path().is_ident("debug") {
+            if let syn::Meta::List(list) = &attr.meta {
+                // In syn v2, list contains only path + tokens
+                let args: syn::punctuated::Punctuated<syn::MetaNameValue, syn::Token![,]> = list
+                    .parse_args_with(syn::punctuated::Punctuated::parse_terminated)
+                    .unwrap();
+
+                for nv in args {
+                    if nv.path.is_ident("bound") {
+                        // panic!("HERE");
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(s),
+                            ..
+                        }) = nv.value
+                        {
+                            println!("bound = {}", s.value());
+                            bound_attr = TokenStream::from_str(&s.value()).unwrap();
+                            infer_debug_bounds = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let name = input.ident;
 
@@ -27,13 +57,15 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         .map(|f| {
             let mut s: Option<String> = None;
             for attr in &f.attrs {
-                if let Meta::NameValue(val) = &attr.meta { match &val.value {
-                    Expr::Lit(exprlit) => match &exprlit.lit {
-                        Lit::Str(lit) => s = Some(lit.value()),
+                if let Meta::NameValue(val) = &attr.meta {
+                    match &val.value {
+                        Expr::Lit(exprlit) => match &exprlit.lit {
+                            Lit::Str(lit) => s = Some(lit.value()),
+                            _ => todo!("report an error"),
+                        },
                         _ => todo!("report an error"),
-                    },
-                    _ => todo!("report an error"),
-                } }
+                    }
+                }
             }
 
             let field_name = &f.ident;
@@ -84,17 +116,19 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         .collect();
 
     let mut generics_w_debug_bound = Vec::new();
-    for param in input.generics.params.iter() {
-        if let GenericParam::Type(t) = param {
-            // is this type param mentioned in any of the fields? (other than PhantomData)
-            if fields
-                .iter()
-                .any(|f| ty_mentions_generic_param(&f.ty, &t.ident))
-            {
-                let ident = &t.ident;
-                generics_w_debug_bound.push(quote! {
-                    #ident : std::fmt::Debug,
-                });
+    if infer_debug_bounds {
+        for param in input.generics.params.iter() {
+            if let GenericParam::Type(t) = param {
+                // is this type param mentioned in any of the fields? (other than PhantomData)
+                if fields
+                    .iter()
+                    .any(|f| ty_mentions_generic_param(&f.ty, &t.ident))
+                {
+                    let ident = &t.ident;
+                    generics_w_debug_bound.push(quote! {
+                        #ident : std::fmt::Debug,
+                    });
+                }
             }
         }
     }
@@ -128,7 +162,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let ret = quote! {
         impl<#( #generics_w_trait_bound )*> std::fmt::Debug for #name<#( #generics )*>
-        where #( #assoc_typ_trait_bounds )* #( #generics_w_debug_bound )*
+        where #( #assoc_typ_trait_bounds )* #( #generics_w_debug_bound )* #bound_attr
         {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.debug_struct(stringify!(#name))
